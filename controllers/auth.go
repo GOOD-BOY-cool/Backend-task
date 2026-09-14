@@ -59,8 +59,8 @@ func Login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Second * config.JWTExpire).Unix(),
-	})
+		"exp":     time.Now().Add(time.Second * config.JWTExpire).Unix(), //转变为unix时间戳,因为JWT标准要求字段必须是时间戳
+	}) //token即是header.payload.signature的组合，header（包含alg:签名算法,typ:token类型几乎永远是JWT）和payload是base64编码(方便网上传输)的，signature是用header和payload以及密钥生成的签名
 	tokenStr, _ := token.SignedString([]byte(config.JWTSecret))
 
 	utils.Success(c, gin.H{
@@ -71,4 +71,5 @@ func Login(c *gin.Context) {
 		},
 	})
 
-}
+} //这里用私钥后期有时间可以考虑公钥   多个授权服务考虑公钥，因为当密码当多个授权后私钥被破解概率会极大上升（这或许和破译密码学有关）
+//或许我对密码学感兴趣

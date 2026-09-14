@@ -11,7 +11,9 @@ import (
 
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
+		header := c.GetHeader("Authorization") //Authorization是HTTP请求头中用于传递身份验证信息的字段，通常用于携带访问令牌（如JWT）以验证客户端的身份。它的值通常以"Bearer "开头，后跟实际的令牌字符串。
+		//获取请求头中的Authorization字段
+		//Authorization: Bearer <token>
 		if header == "" || !strings.HasPrefix(header, "Bearer") {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "未登录"})
 			c.Abort()
