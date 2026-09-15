@@ -60,7 +60,7 @@ func Login(c *gin.Context) {
 		"user_id": user.ID,
 		"role":    user.Role,
 		"exp":     time.Now().Add(time.Second * config.JWTExpire).Unix(), //转变为unix时间戳,因为JWT标准要求字段必须是时间戳
-	}) //token即是header.payload.signature的组合，header（包含alg:签名算法,typ:token类型几乎永远是JWT）和payload是base64编码(方便网上传输)的，signature是用header和payload以及密钥生成的签名
+	}) //token即是header.payload.signature的组合，header（包含alg:签名算法,typ:token  类型几乎永远是JWT）和payload是base64编码(方便网上传输)的，signature是用header和payload以及密钥生成的签名
 	tokenStr, _ := token.SignedString([]byte(config.JWTSecret))
 
 	utils.Success(c, gin.H{

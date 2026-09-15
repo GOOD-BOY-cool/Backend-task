@@ -18,7 +18,7 @@ func JWTAuth() gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "未登录"})
 			c.Abort()
 			return
-		}
+		} //strings.HasPrefix(s, prefix)是一个判断字符串是否以指定前缀开头的函数  prefix是前缀，s是字符串  返回值为bool类型
 		//判断是否登录
 
 		tokenStr := strings.TrimPrefix(header, "Bearer")
