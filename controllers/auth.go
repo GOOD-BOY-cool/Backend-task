@@ -44,7 +44,7 @@ func Register(c *gin.Context) {
 }
 func Login(c *gin.Context) {
 	var body struct {
-		Account  string `json:"accont"`
+		Account  string `json:"account"`
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -53,6 +53,10 @@ func Login(c *gin.Context) {
 	}
 	var user models.User
 	if err := DB.Where("account=?", body.Account).First(&user).Error; err != nil {
+		utils.Fail(c, 401, "账号或密码错误")
+		return
+	}
+	if !utils.CheckPasswordHash(user.PasswordHash, body.Password) {
 		utils.Fail(c, 401, "账号或密码错误")
 		return
 	}

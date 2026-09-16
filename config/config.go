@@ -2,7 +2,7 @@ package config
 
 const (
 	DBUser     = "root"
-	DBPassword = "yourpassword"
+	DBPassword = "rootpassword"
 	DBName     = "campus_secondhand"
 	DBPort     = "3306"
 	DBHost     = "127.0.0.1"
