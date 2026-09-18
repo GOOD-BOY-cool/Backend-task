@@ -26,7 +26,8 @@ func main() {
 	if err != nil {
 		panic("数据库连接失败")
 	}
-	db.AutoMigrate(&models.User{})
+	db.AutoMigrate(&models.User{})  //生成用户表
+	db.AutoMigrate(&models.Goods{}) //生成物品表
 	//按照模型结构体自动创建表，若表已存在则不创建
 	controllers.InitDB(db)
 
