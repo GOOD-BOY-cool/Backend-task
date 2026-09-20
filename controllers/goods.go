@@ -18,13 +18,27 @@ func CreateGoods(c *gin.Context) {
 	}
 	// 从 JWT 中间件透传的用户ID
 	userID, _ := c.Get("user_id")
-	goods.UserID = userID.(uint)
+	uid := userID.(uint)
+	goods.UserID = uid
+
+	var user models.User
+	DB.First(&user, uid)
+	if user.Level >= 2 {
+		goods.Status = "approved"
+	} else {
+		goods.Status = "pending"
+	}
 
 	if err := DB.Create(&goods).Error; err != nil {
 		utils.Fail(c, 500, "发布失败")
 		return
 	}
-	utils.Success(c, goods)
+
+	msg := "发布成功"
+	if goods.Status == "pending" {
+		msg = "发布成功,等待管理员审核"
+	}
+	utils.Success(c, gin.H{"msg": msg, "goods": goods})
 }
 
 // 商品列表（包含查询功能与分页功能）
@@ -36,7 +50,8 @@ func ListGoods(c *gin.Context) {
 
 	var goods []models.Goods //用数组来对应数据库多行数据，因为列表要装多条数据，为Find做准备
 
-	query := DB.Model(&models.Goods{}).Where("status=?", "on_sale")
+	query := DB.Model(&models.Goods{}).Where("status=?", "approved")
+
 	if keyword != "" {
 		query = query.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%") //动态模糊查询，LIKE是模糊匹配，%=”通配符“，%keyword%意味着任意位置包含keyword就行，问号是占位符
 	}
@@ -48,7 +63,7 @@ func ListGoods(c *gin.Context) {
 func DetailGoods(c *gin.Context) {
 	id := c.Param("id") //c.Param取URL路径里的参数(在问号前面)
 	var goods models.Goods
-	if err := DB.First(&goods, id).Error; err != nil {
+	if err := DB.Where("id=? AND status = ?", id, "approved").First(&goods).Error; err != nil {
 		utils.Fail(c, 404, "商品不存在")
 		return
 	} //Find查找不到返回空对象或者切片，First查不到会报错
