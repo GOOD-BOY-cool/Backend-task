@@ -10,7 +10,7 @@ import (
 // *gin.Engine 和路由有关的结构体内部感觉很复杂
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
-	r.Static("/uploads", "./uploads")
+	r.Static("/uploads", "./uploads") //把服务器本地的 ./uploads 文件夹，映射成可以通过浏览器直接访问的静态资源路径 /uploads
 	//gin.Default()=gin.New()(裸引擎) + Logger()(打印请求日志) + Recovery()（保证panic不崩溃）  gin.New()（返回一个空的gin.Engine结构体），Logger()和Recovery()是gin的中间件
 	//recovery主要靠内部的defer + recover()和c.Abort()来保证panic不崩溃)
 	auth := r.Group("/api/auth")
@@ -38,7 +38,7 @@ func SetupRouter() *gin.Engine {
 		authGoods.POST("", controllers.CreateGoods)       // 发布
 		authGoods.PUT("/:id", controllers.UpdateGoods)    // 修改    冒号开头表示这是一个动态占位符，名字叫id（可以任意变换）
 		authGoods.DELETE("/:id", controllers.DeleteGoods) // 下架
-		r.POST("/api/upload", controllers.UploadImage)    // 上传图片（也可放这里）
+		authGoods.POST("/api/upload", controllers.UploadImage) // 上传图片
 	}
 
 	return r
