@@ -35,10 +35,10 @@ func SetupRouter() *gin.Engine {
 	authGoods := r.Group("/api/goods")
 	authGoods.Use(middleware.JWTAuth()) //Use给路由挂载中间件，意味着这个分组的所有接口都先执行这个函数
 	{
-		authGoods.POST("", controllers.CreateGoods)       // 发布
-		authGoods.PUT("/:id", controllers.UpdateGoods)    // 修改    冒号开头表示这是一个动态占位符，名字叫id（可以任意变换）
-		authGoods.DELETE("/:id", controllers.DeleteGoods) // 下架
-		authGoods.POST("/api/upload", controllers.UploadImage) // 上传图片
+		authGoods.POST("", controllers.CreateGoods)        // 发布
+		authGoods.PUT("/:id", controllers.UpdateGoods)     // 修改    冒号开头表示这是一个动态占位符，名字叫id（可以任意变换）
+		authGoods.DELETE("/:id", controllers.DeleteGoods)  // 下架
+		authGoods.POST("/upload", controllers.UploadImage) // 上传图片
 	}
 
 	return r
