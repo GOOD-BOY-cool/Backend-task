@@ -35,10 +35,19 @@ func SetupRouter() *gin.Engine {
 	authGoods := r.Group("/api/goods")
 	authGoods.Use(middleware.JWTAuth()) //Use给路由挂载中间件，意味着这个分组的所有接口都先执行这个函数
 	{
-		authGoods.POST("", controllers.CreateGoods)        // 发布
+		authGoods.POST("", controllers.CreateGoods)        // 发布(有等级限制)
 		authGoods.PUT("/:id", controllers.UpdateGoods)     // 修改    冒号开头表示这是一个动态占位符，名字叫id（可以任意变换）
 		authGoods.DELETE("/:id", controllers.DeleteGoods)  // 下架
 		authGoods.POST("/upload", controllers.UploadImage) // 上传图片
+	}
+
+	adminGroup := r.Group("/api/admin")
+	adminGroup.Use(middleware.JWTAuth(), middleware.AdminAuth())
+	{
+		adminGroup.GET("/post/pending", controllers.PendingPosts)    //拿到等待决定的帖子
+		adminGroup.POST("/posts/:id/audit", controllers.Auditpost)   //对帖子进行approve与reject的决定（包含成功时增加经验值的功能）
+		adminGroup.DELETE("/posts/:id", controllers.AdminDeletePost) //管理员删除指定帖子
+
 	}
 
 	return r
