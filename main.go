@@ -35,3 +35,9 @@ func main() {
 	r := router.SetupRouter()
 	r.Run(":8080")
 }
+
+//官方默认规则（约定）
+//只要你没用 gorm:"column:xxx" 标签强行指定列名，GORM 就会按以下规则自动转换：
+//字段名：驼峰命名（CamelCase）自动转蛇形小写（snake_case）。比如 CreatedAt → created_at，UserName → user_name。
+//表名：结构体名字转蛇形，并且默认变复数。比如 Goods → goods（你之前的商品表），User → users。
+//c.Get返回interface{},c.Param返回string

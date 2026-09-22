@@ -15,13 +15,13 @@ func SetupRouter() *gin.Engine {
 	//recovery主要靠内部的defer + recover()和c.Abort()来保证panic不崩溃)
 	auth := r.Group("/api/auth")
 	{
-		auth.POST("/register", controllers.Register)
-		auth.POST("/login", controllers.Login)
+		auth.POST("/register", controllers.Register) //注册
+		auth.POST("/login", controllers.Login)       //登录
 		auth.GET("/me", middleware.JWTAuth(), func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"code": 0,
 				"msg":  "ok",
-			})
+			}) //鉴权测试
 		})
 	}
 	//公开接口

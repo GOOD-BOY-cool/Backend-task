@@ -35,7 +35,7 @@ func JWTAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		claims := token.Claims.(jwt.MapClaims)
+		claims := token.Claims.(jwt.MapClaims)              //类型断言为jwt.MapClaims，因为token.Claims默认是interface{}导致go便不知到里面是啥
 		c.Set("user_id", uint(claims["user_id"].(float64))) //JWT数字默认float64
 
 		//Valid代表是否有效,由jwt. Parse解析得到
