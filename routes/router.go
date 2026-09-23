@@ -50,5 +50,13 @@ func SetupRouter() *gin.Engine {
 
 	}
 
+	favorite := r.Group("/api/posts")
+	favorite.Use(middleware.JWTAuth())
+	{
+		favorite.POST("/:id/favorite", controllers.FavoritePost)     //对项目进行收藏
+		favorite.DELETE("/:id/favorite", controllers.UnfavoritePost) //删除列表中的已收藏的物品
+		favorite.GET("/my-favorite", controllers.MyFavorites)        //生成收藏列表
+	}
+
 	return r
 }
