@@ -69,9 +69,9 @@ func AdminHandleReport(c *gin.Context) {
 	}
 	rid := uint(rid64)
 
-	action := c.PostForm("action") //vaild/invaild 有效/无效
-	if action != "vaild" && action != "invaild" {
-		utils.Fail(c, 400, "action只能时vaild或invaild")
+	action := c.PostForm("action") //valid/invalid 有效/无效
+	if action != "valid" && action != "invalid" {
+		utils.Fail(c, 400, "action只能是valid或invalid")
 		return
 
 	}
@@ -81,12 +81,13 @@ func AdminHandleReport(c *gin.Context) {
 		utils.Fail(c, 404, "举报记录不存在")
 		return
 	}
-	if action == "vaild" {
+	if action == "valid" {
 		DB.Model(&models.Goods{}).Where("id=?", report.PostID).Update("status", "deleted")
 
 		var goods models.Goods
 		DB.First(&goods, report.PostID)
 		DB.Model(&models.User{}).Where("id=?", goods.UserID).Update("exp", gorm.Expr("exp-5"))
+		DB.Model(&models.User{}).Where("id=?", report.UserID).Update("exp", gorm.Expr("exp+5"))
 	}
 
 	DB.Model(&report).Update("status", action)
