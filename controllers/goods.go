@@ -43,10 +43,13 @@ func CreateGoods(c *gin.Context) {
 
 // 商品列表（包含查询功能与分页功能）
 func ListGoods(c *gin.Context) {
-	keyword := c.Query("keyword")                        //c.get拿c.set放置的东西(一次请求结束后就没了，是我自己装进上下文的，数据存在请求内存)，c.Query拿URL中问号？后面的参数
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1")) //strconv.Atoi()将字符串转换为整数，c.DefaultQuery("page","1"）当输入为空时默认page为1，防止未输入值导致的程序崩溃
-	limit := 10                                          //每次拿10条
-	offset := (page - 1) * limit                         //拿取你输入页码的数据
+	keyword := c.Query("keyword")                          //c.get拿c.set放置的东西(一次请求结束后就没了，是我自己装进上下文的，数据存在请求内存)，c.Query拿URL中问号？后面的参数
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1")) //strconv.Atoi()将字符串转换为整数，c.DefaultQuery("page","1"）当输入为空时默认page为1，防止未输入值导致的程序崩溃
+	if err != nil {
+		utils.Fail(c, 400, "请输入数字")
+	}
+	limit := 10                  //每次拿10条
+	offset := (page - 1) * limit //拿取你输入页码的数据
 
 	var goods []models.Goods //用数组来对应数据库多行数据，因为列表要装多条数据，为Find做准备
 
@@ -92,7 +95,17 @@ func UpdateGoods(c *gin.Context) {
 
 // 删除商品
 func DeleteGoods(c *gin.Context) {
+	userID, _ := c.Get("user_id")
 	id := c.Param("id")
+	uid := userID.(uint)
+	var goods models.Goods
+	if err := DB.First(&goods, id).Error; err != nil {
+		utils.Fail(c, 404, "商品不存在")
+		return
+	}
+	if goods.UserID != uid {
+		utils.Fail(c, 403, "你无权限删除别人的商品")
+	}
 	DB.Model(&models.Goods{}).Where("id=?", id).Update("status", "deleted")
 	utils.Success(c, nil)
 }
