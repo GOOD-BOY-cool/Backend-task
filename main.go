@@ -30,6 +30,7 @@ func main() {
 	db.AutoMigrate(&models.Goods{}) //生成物品表
 	db.AutoMigrate(&models.AuditLog{})
 	db.AutoMigrate(&models.Favorite{})
+	db.AutoMigrate(&models.Report{})
 	//生成审计日志（管理员）
 	//按照模型结构体自动创建表，若表已存在则不创建
 	controllers.InitDB(db)

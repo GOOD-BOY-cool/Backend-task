@@ -58,5 +58,20 @@ func SetupRouter() *gin.Engine {
 		favorite.GET("/my-favorite", controllers.MyFavorites)        //生成收藏列表
 	}
 
+	//普通用户举报
+	report := r.Group("/api/posts")
+	report.Use(middleware.JWTAuth())
+	{
+		report.POST("/:id/report", controllers.CreateReport)
+	}
+
+	//管理员处理
+	adminReport := r.Group("/api/admin/reports")
+	adminReport.Use(middleware.JWTAuth(), middleware.AdminAuth())
+	{
+		adminReport.GET("", controllers.ListReport)
+		adminReport.POST("/:id/handle", controllers.AdminHandleReport)
+	}
+
 	return r
 }
