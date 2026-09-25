@@ -93,6 +93,6 @@ func UpdateGoods(c *gin.Context) {
 // 删除商品
 func DeleteGoods(c *gin.Context) {
 	id := c.Param("id")
-	DB.Model(&models.Goods{}).Where("id=?", id).Update("status", "sold_out")
+	DB.Model(&models.Goods{}).Where("id=?", id).Update("status", "deleted")
 	utils.Success(c, nil)
 }
