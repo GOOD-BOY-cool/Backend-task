@@ -4,8 +4,8 @@ import "time"
 
 type Report struct {
 	ID        uint      `gorm:"primaryKey"`
-	UserID    uint      `json:"user_id" `
-	PostID    uint      `json:"post_id" `
+	UserID    uint      `json:"user_id" gorm:"uniqueIndex:idx_user_goods"`
+	PostID    uint      `json:"post_id" gorm:"uniqueIndex:idx_user_goods"`
 	Reason    string    `json:"reason"`
 	Status    string    `json:"status" gorm:"default:pending"`
 	CreatedAt time.Time `json:"created_at"`
