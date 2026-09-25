@@ -20,7 +20,7 @@ func checkLeval(user *models.User) {
 	levalexp := []int{0, 0, 100, 300, 600, 1000, 1500}
 	for i := 6; i > 1; i-- {
 		if user.Exp >= levalexp[i] && user.Level < i {
-			DB.Model(user).Update("leval", i)
+			DB.Model(user).Update("level", i)
 			break
 		}
 	}

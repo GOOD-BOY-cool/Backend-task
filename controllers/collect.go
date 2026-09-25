@@ -12,6 +12,7 @@ func FavoritePost(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		utils.Fail(c, 400, "帖子ID无效")
+		return
 	}
 	userID, _ := c.Get("user_id")
 	uid := userID.(uint)
@@ -45,7 +46,7 @@ func UnfavoritePost(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	uid := userID.(uint)
 
-	result := DB.Where("user_id=? AND psot_id =?", uid, postID).Delete(models.Favorite{}) //Delete(models.Favorite{})指定对这个库进行删除
+	result := DB.Where("user_id=? AND post_id =?", uid, postID).Delete(models.Favorite{}) //Delete(models.Favorite{})指定对这个库进行删除
 	if result.RowsAffected == 0 {
 		utils.Fail(c, 400, "你还没收藏这个帖子")
 		return
