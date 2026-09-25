@@ -13,7 +13,7 @@ func AdminAuth() gin.HandlerFunc {
 		userID, exists := c.Get("user_id")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"code": 401, "message": "未登录"})
+				"code": 401, "msg": "未登录"})
 			c.Abort()
 			return
 		}
