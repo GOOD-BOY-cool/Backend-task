@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"backend/models"
+	"backend/services"
 	"backend/utils"
 	"time"
 
@@ -62,15 +63,21 @@ func SignIn(c *gin.Context) {
 			streak = 1
 		}
 	}
-	user.Exp += expGain
-	user.Level = user.Exp/100 + 1
-	user.LastSignIn = &now //LastSignIn为指针类型
-	user.SignInStreak = streak
 
-	if err := DB.Save(&user).Error; err != nil {
+	if err := DB.Model(&models.User{}).Where("id=?", uid).Updates(map[string]interface{}{
+		"last_sign_in":   now,
+		"sign_in_streak": streak,
+	}).Error; err != nil {
 		utils.Fail(c, 500, "签到失败")
 		return
 	}
+
+	if err := services.AddExp(uid, expGain); err != nil {
+		utils.Fail(c, 500, "签到失败")
+		return
+	}
+
+	DB.First(&user, uid) //重新读取，拿到加完经验后的最新值
 
 	utils.Success(c, gin.H{
 		"exp_gain": expGain,
