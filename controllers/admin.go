@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"backend/models"
+	"backend/services"
 	"backend/utils"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func PendingPosts(c *gin.Context) {
@@ -15,16 +15,6 @@ func PendingPosts(c *gin.Context) {
 	DB.Where("status=?", "pending").Order("created_at ASC").Find(&goods) //ASC升序DESC降序
 	utils.Success(c, goods)
 }
-
-func checkLeval(user *models.User) {
-	levalexp := []int{0, 0, 100, 300, 600, 1000, 1500}
-	for i := 6; i > 1; i-- {
-		if user.Exp >= levalexp[i] && user.Level < i {
-			DB.Model(user).Update("level", i)
-			break
-		}
-	}
-} //Auditpost内层所引用的函数
 
 func Auditpost(c *gin.Context) {
 	id := c.Param("id")
@@ -40,11 +30,12 @@ func Auditpost(c *gin.Context) {
 
 	if action == "approve" {
 		DB.Model(&goods).Update("status", "approved")
-		DB.Model(&models.User{}).Where("id=?", goods.UserID).Update("exp", gorm.Expr("exp+10")) //gorm.Expr()专门用于字段增减
+		// DB.Model(&models.User{}).Where("id=?", goods.UserID).Update("exp", gorm.Expr("exp+10")) //gorm.Expr()专门用于字段增减
 
-		var author models.User
-		DB.First(&author, goods.UserID)
-		checkLeval(&author)
+		if err := services.AddExp(goods.UserID, 10); err != nil {
+			utils.Fail(c, 500, "处理失败")
+			return
+		}
 	} else {
 		DB.Model(&goods).Update("status", "rejected")
 	}

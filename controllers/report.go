@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"backend/models"
+	"backend/services"
 	"backend/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func CreateReport(c *gin.Context) {
@@ -86,8 +86,14 @@ func AdminHandleReport(c *gin.Context) {
 
 		var goods models.Goods
 		DB.First(&goods, report.PostID)
-		DB.Model(&models.User{}).Where("id=?", goods.UserID).Update("exp", gorm.Expr("exp-5"))
-		DB.Model(&models.User{}).Where("id=?", report.UserID).Update("exp", gorm.Expr("exp+5"))
+		if err := services.AddExp(goods.UserID, -5); err != nil {
+			utils.Fail(c, 500, "处理失败")
+			return
+		}
+		if err := services.AddExp(report.UserID, 5); err != nil {
+			utils.Fail(c, 500, "处理失败")
+			return
+		}
 	}
 
 	DB.Model(&report).Update("status", action)
