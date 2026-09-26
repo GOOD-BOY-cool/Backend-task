@@ -109,3 +109,36 @@ func DeleteGoods(c *gin.Context) {
 	DB.Model(&models.Goods{}).Where("id=?", id).Update("status", "deleted")
 	utils.Success(c, nil)
 }
+
+// score = 时间衰减 × 0.45 + 发帖人等级 × 0.25 + 收藏数 × 0.15 - 被举报次数 × 0.15
+type GoodsWithScore struct {
+	models.Goods
+	Score float64 `json:"score"`
+}
+
+func ListGoodsRanked(c *gin.Context) {
+	var goods []models.Goods
+
+	err := DB.Model(&models.Goods{}).
+		Select(`goods.*, 
+			(UNIX_TIMESTAMP(goods.created_at) * 0.45 
+			+ users.level * 0.25 
+			+ (SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id) * 0.15
+			- (SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid') * 0.15
+			) AS score`).
+		Joins("LEFT JOIN users ON goods.user_id = users.id").
+		Where("goods.status = ?", "approved").
+		Order("score DESC").
+		Find(&goods).Error
+
+	if err != nil {
+		utils.Fail(c, 500, "获取列表失败")
+		return
+	} //不把user写成跟report一样的子查询，是考虑到当商品太多时子查询的速度会降低，性能降低
+	/*“*”意味着通配符；goods.*把商品表的所有列（ID，名字）拿出
+	SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id  选择并且对收藏表中收藏的物品id=当前物品id的数量进行统计
+	AS score: 把以上求和的结果作为score,Go语言看懂后把数字存到Score字段
+	Joins("LEFT JOIN users ON goods.user_id = users.id")“LEFT JOIN users”把user表拉过来一起查，"ON goods.user_id = users.id"条件是商品的user_id等于用户的id
+	*/
+	utils.Success(c, goods)
+}
