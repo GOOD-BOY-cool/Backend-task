@@ -3,6 +3,7 @@ package main
 import (
 	"backend/config"
 	"backend/controllers"
+	"backend/database"
 	"backend/models"
 	router "backend/routes"
 
@@ -33,6 +34,7 @@ func main() {
 	db.AutoMigrate(&models.Report{})
 	//生成审计日志（管理员）
 	//按照模型结构体自动创建表，若表已存在则不创建
+	database.Init(db)
 	controllers.InitDB(db)
 
 	r := router.SetupRouter()
