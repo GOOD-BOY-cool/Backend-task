@@ -17,6 +17,7 @@ func AddExp(userID uint, exp int) error {
 	}
 	if user.Level <= 99 {
 		user.Level = user.Exp/100 + 1
+	} else {
 		user.Exp -= exp
 	}
 	return database.DB.Model(models.User{}).Where("id=?", userID).Updates(map[string]interface{}{"exp": user.Exp, "level": user.Level}).Error
