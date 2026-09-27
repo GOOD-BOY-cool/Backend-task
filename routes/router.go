@@ -27,8 +27,9 @@ func SetupRouter() *gin.Engine {
 	//公开接口
 	goods := r.Group("/api/goods")
 	{
-		goods.GET("", controllers.ListGoods)       // 搜索 ?keyword=手机&page=1
-		goods.GET("/:id", controllers.DetailGoods) // 详情
+		goods.GET("", controllers.ListGoods)              // 搜索 ?keyword=手机&page=1
+		goods.GET("/ranked", controllers.ListGoodsRanked) //排序总表（包含所有商品）
+		goods.GET("/:id", controllers.DetailGoods)        // 详情
 	}
 
 	// 需登录接口
@@ -69,9 +70,11 @@ func SetupRouter() *gin.Engine {
 	adminReport := r.Group("/api/admin/reports")
 	adminReport.Use(middleware.JWTAuth(), middleware.AdminAuth())
 	{
-		adminReport.GET("", controllers.ListReport)
-		adminReport.POST("/:id/handle", controllers.AdminHandleReport)
+		adminReport.GET("", controllers.ListReport)                    //拿到举报列表
+		adminReport.POST("/:id/handle", controllers.AdminHandleReport) //处理举报列表
 	}
+
+	r.POST("/api/user/sign-in", middleware.JWTAuth(), controllers.SignIn)
 
 	return r
 }
