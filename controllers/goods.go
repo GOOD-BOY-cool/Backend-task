@@ -11,16 +11,28 @@ import (
 
 // 商品发布函数
 func CreateGoods(c *gin.Context) {
-	var goods models.Goods
-	if err := c.ShouldBindJSON(&goods); err != nil {
+	var req struct {
+		Title       string   `binding:"required" json:"title"`
+		Description string   ` json:"description"`
+		Price       float64  `binding:"required" json:"price"`
+		Images      []string `binding:"required" json:"images" gorm:"serializer:json"` //gorm:"serializer:json"数据存入数据库时将该字段序列化未JSON字符串；从数据库读取时在反序化为Go对象
+		Category    string   `json:"category"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Fail(c, 400, "参数错误："+err.Error())
 		return
 	}
 	// 从 JWT 中间件透传的用户ID
 	userID, _ := c.Get("user_id")
 	uid := userID.(uint)
-	goods.UserID = uid
-
+	goods := models.Goods{
+		Title:       req.Title,
+		Description: req.Description,
+		Price:       req.Price,
+		Images:      req.Images,
+		Category:    req.Category,
+		UserID:      uid,
+	}
 	var user models.User
 	DB.First(&user, uid)
 	if user.Level >= 2 {
@@ -45,8 +57,9 @@ func CreateGoods(c *gin.Context) {
 func ListGoods(c *gin.Context) {
 	keyword := c.Query("keyword")                          //c.get拿c.set放置的东西(一次请求结束后就没了，是我自己装进上下文的，数据存在请求内存)，c.Query拿URL中问号？后面的参数
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1")) //strconv.Atoi()将字符串转换为整数，c.DefaultQuery("page","1"）当输入为空时默认page为1，防止未输入值导致的程序崩溃
-	if err != nil {
-		utils.Fail(c, 400, "请输入数字")
+	if err != nil || page < 1 {
+		utils.Fail(c, 400, "请输入大于0的数字")
+		return
 	}
 	limit := 10                  //每次拿10条
 	offset := (page - 1) * limit //拿取你输入页码的数据
@@ -58,7 +71,21 @@ func ListGoods(c *gin.Context) {
 	if keyword != "" {
 		query = query.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%") //动态模糊查询，LIKE是模糊匹配，%=”通配符“，%keyword%意味着任意位置包含keyword就行，问号是占位符
 	}
-	query.Limit(limit).Offset(offset).Find(&goods)
+	if err = query.Select(`
+			goods.*,
+			(
+				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
+				+ user.Level/100*0.25
+				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
+				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
+			) AS score
+		`).
+		Joins("LEFT JOIN users ON goods.user_id = users.id").
+		Order("score DESC").Limit(limit).Offset(offset).Find(&goods).Error; err != nil {
+		utils.Fail(c, 500, "获取列表失败")
+		return
+	}
+
 	utils.Success(c, goods)
 }
 
@@ -86,7 +113,13 @@ func UpdateGoods(c *gin.Context) {
 		utils.Fail(c, 403, "无权限")
 		return
 	}
-	var updateData models.Goods
+	var updateData struct {
+		Title       string   `binding:"required" json:"title"`
+		Description string   ` json:"description"`
+		Price       float64  `binding:"required" json:"price"`
+		Images      []string `binding:"required" json:"images" gorm:"serializer:json"` //gorm:"serializer:json"数据存入数据库时将该字段序列化未JSON字符串；从数据库读取时在反序化为Go对象
+		Category    string   `json:"category"`
+	}
 	c.ShouldBindJSON(&updateData)
 	DB.Model(&goods).Updates(updateData) //锁定这条商品并且更新他
 	utils.Success(c, goods)
@@ -105,27 +138,27 @@ func DeleteGoods(c *gin.Context) {
 	}
 	if goods.UserID != uid {
 		utils.Fail(c, 403, "你无权限删除别人的商品")
+		return
 	}
 	DB.Model(&models.Goods{}).Where("id=?", id).Update("status", "deleted")
 	utils.Success(c, nil)
 }
 
 // score = 时间衰减 × 0.45 + 发帖人等级 × 0.25 + 收藏数 × 0.15 - 被举报次数 × 0.15
-type GoodsWithScore struct {
-	models.Goods
-	Score float64 `json:"score"`
-}
 
 func ListGoodsRanked(c *gin.Context) {
 	var goods []models.Goods
 
 	err := DB.Model(&models.Goods{}).
-		Select(`goods.*, 
-			(UNIX_TIMESTAMP(goods.created_at) * 0.45 
-			+ users.level * 0.25 
-			+ (SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id) * 0.15
-			- (SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid') * 0.15
-			) AS score`).
+		Select(`
+			goods.*,
+			(
+				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
+				+ user.Level/100*0.25
+				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
+				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
+			) AS score
+		`).
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
 		Where("goods.status = ?", "approved").
 		Order("score DESC").
