@@ -48,7 +48,7 @@ func Auditpost(c *gin.Context) {
 			return
 		}
 	} else {
-		if err := DB.Model(&goods).Update("status", "reject").Error; err != nil {
+		if err := DB.Model(&goods).Update("status", "rejected").Error; err != nil {
 			utils.Fail(c, 500, "处理失败")
 			return
 		}
