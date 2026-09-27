@@ -50,18 +50,19 @@ func SignIn(c *gin.Context) {
 
 		if lastDate.Equal(yesterday) {
 			streak++
-			if streak >= 7 && streak < 14 {
-				expGain = 10
-			} else if streak >= 14 && streak < 21 {
-				expGain = 20
-			} else if streak >= 21 {
-				expGain = 30
-			} else {
-				streak = 1
-			}
 		} else {
 			streak = 1
 		}
+	} else {
+		streak = 1
+	}
+	switch {
+	case streak >= 21:
+		expGain = 30
+	case streak >= 14:
+		expGain = 20
+	case streak >= 7:
+		expGain = 10
 	}
 
 	if err := DB.Model(&models.User{}).Where("id=?", uid).Updates(map[string]interface{}{
