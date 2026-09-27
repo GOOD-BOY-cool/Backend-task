@@ -81,6 +81,11 @@ func AdminHandleReport(c *gin.Context) {
 		utils.Fail(c, 404, "举报记录不存在")
 		return
 	}
+
+	if report.Status != "pending" {
+		utils.Fail(c, 400, "该举报已处理")
+		return
+	}
 	if action == "valid" {
 		DB.Model(&models.Goods{}).Where("id=?", report.PostID).Update("status", "deleted")
 
