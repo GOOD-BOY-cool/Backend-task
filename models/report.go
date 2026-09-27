@@ -5,10 +5,8 @@ import "time"
 type Report struct {
 	ID        uint      `gorm:"primaryKey"`
 	UserID    uint      `json:"user_id" gorm:"uniqueIndex:idx_user_goods"`
-	PostID    uint      `json:"post_id" gorm:"uniqueIndex:idx_user_goods"`
-	Reason    string    `json:"reason"`
-	Status    string    `json:"status" gorm:"default:pending"`
+	PostID    uint      `json:"post_id" gorm:"uniqueIndex:idx_user_goods;index"` // 排序分里的子查询要用
+	Reason    string    `json:"reason" gorm:"size:500"`
+	Status    string    `json:"status" gorm:"size:20;default:'pending';index"`
 	CreatedAt time.Time `json:"created_at"`
 }
-
-//后期可以考虑联合唯一索引从数据库物理层面防止高并发请况
