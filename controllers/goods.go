@@ -75,7 +75,7 @@ func ListGoods(c *gin.Context) {
 			goods.*,
 			(
 				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
-				+ user.Level/100*0.25
+				+ users.level/100*0.25
 				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
 				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
 			) AS score
@@ -154,7 +154,7 @@ func ListGoodsRanked(c *gin.Context) {
 			goods.*,
 			(
 				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
-				+ user.Level/100*0.25
+				+ users.level/100*0.25
 				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
 				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
 			) AS score
