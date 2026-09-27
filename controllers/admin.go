@@ -28,16 +28,30 @@ func Auditpost(c *gin.Context) {
 
 	adminID, _ := c.Get("user_id")
 
+	if action != "approve" && action != "reject" {
+		utils.Fail(c, 400, "action只能是approve或reject")
+		return
+	}
+	if goods.Status != "pending" {
+		utils.Fail(c, 400, "该帖子已审核过")
+		return
+	}
+
 	if action == "approve" {
-		DB.Model(&goods).Update("status", "approved")
-		// DB.Model(&models.User{}).Where("id=?", goods.UserID).Update("exp", gorm.Expr("exp+10")) //gorm.Expr()专门用于字段增减
+		if err := DB.Model(&goods).Update("status", "approved").Error; err != nil {
+			utils.Fail(c, 500, "处理失败")
+			return
+		}
 
 		if err := services.AddExp(goods.UserID, 10); err != nil {
 			utils.Fail(c, 500, "处理失败")
 			return
 		}
 	} else {
-		DB.Model(&goods).Update("status", "rejected")
+		if err := DB.Model(&goods).Update("status", "reject").Error; err != nil {
+			utils.Fail(c, 500, "处理失败")
+			return
+		}
 	}
 
 	DB.Create(&models.AuditLog{
