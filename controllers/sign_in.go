@@ -33,7 +33,7 @@ func SignIn(c *gin.Context) {
 		if lastDate.Equal(today) {
 			utils.Fail(c, 400, "今天已签到")
 			return
-		} //时间比较用Equal更安全和准确
+		} //时间比较用Equal更安全和准确,比较绝对时间不受时区影响
 	}
 
 	expGain := 5
