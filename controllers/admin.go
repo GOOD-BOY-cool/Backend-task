@@ -17,7 +17,12 @@ func PendingPosts(c *gin.Context) {
 }
 
 func Auditpost(c *gin.Context) {
-	id := c.Param("id")
+	pid64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效")
+		return
+	}
+	id := uint(pid64)
 	action := c.PostForm("action") //c.PostForm从前端表单拿取数据，分为reject和approve
 
 	var goods models.Goods

@@ -42,7 +42,12 @@ func FavoritePost(c *gin.Context) {
 }
 
 func UnfavoritePost(c *gin.Context) {
-	postID := c.Param("id")
+	pid64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效")
+		return
+	}
+	postID := uint(pid64)
 	userID, _ := c.Get("user_id")
 	uid := userID.(uint)
 

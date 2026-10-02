@@ -91,7 +91,13 @@ func ListGoods(c *gin.Context) {
 
 // 商品详情
 func DetailGoods(c *gin.Context) {
-	id := c.Param("id") //c.Param取URL路径里的参数(在问号前面)
+	pid64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效")
+		return
+	}
+	id := uint(pid64)
+	//c.Param取URL路径里的参数(在问号前面)
 	var goods models.Goods
 	if err := DB.Where("id=? AND status = ?", id, "approved").First(&goods).Error; err != nil {
 		utils.Fail(c, 404, "商品不存在")
@@ -102,7 +108,12 @@ func DetailGoods(c *gin.Context) {
 
 // 发布者更新商品
 func UpdateGoods(c *gin.Context) {
-	id := c.Param("id")
+	pid64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效")
+		return
+	}
+	id := uint(pid64)
 	var goods models.Goods
 	if err := DB.First(&goods, id).Error; err != nil {
 		utils.Fail(c, 404, "商品不存在")
@@ -129,7 +140,12 @@ func UpdateGoods(c *gin.Context) {
 // 删除商品
 func DeleteGoods(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	id := c.Param("id")
+	pid64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.Fail(c, 400, "无效")
+		return
+	}
+	id := uint(pid64)
 	uid := userID.(uint)
 	var goods models.Goods
 	if err := DB.First(&goods, id).Error; err != nil {
