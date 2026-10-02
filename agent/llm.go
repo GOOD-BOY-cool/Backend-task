@@ -13,7 +13,7 @@ import (
 // 这一层只干一件事：把对话历史发给 DeepSeek，把回答拿回来。
 // DeepSeek 的接口地址与模型名。
 const (
-	deepseekBaseURL = "https://api.deepseek.com/v1"
+	deepseekBaseURL = "https://api.deepseek.com"
 	deepseekModel   = "deepseek-v4-flash"
 )
 
