@@ -75,6 +75,15 @@ func SetupRouter() *gin.Engine {
 		adminReport.POST("/:id/handle", controllers.AdminHandleReport) //处理举报列表
 	}
 
+	agentGroup := r.Group("/api/agent")
+	agentGroup.Use(middleware.JWTAuth())
+	{
+		agentGroup.POST("/sessions", controllers.CreateChatSession)            // 新建会话
+		agentGroup.GET("/sessions", controllers.ListChatSessions)              // 会话列表
+		agentGroup.GET("/sessions/:id/messages", controllers.ListChatMessages) // 历史消息
+		agentGroup.DELETE("/sessions/:id", controllers.ArchiveChatSession)     // 归档
+		agentGroup.POST("/chat", controllers.AgentChat)                        // 发消息（SSE 流式:增加聊天感）
+	}
 	r.POST("/api/user/sign-in", middleware.JWTAuth(), controllers.SignIn)
 
 	return r
