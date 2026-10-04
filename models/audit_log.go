@@ -3,7 +3,7 @@ package models
 import "time"
 
 type AuditLog struct {
-	ID        uint      `gorm:"primaryKey"`
+	ID        uint      `json:"id" gorm:"primaryKey"`
 	AdminID   uint      `json:"admin_id"`
 	PostID    uint      `json:"post_id"`
 	Action    string    `json:"action"`

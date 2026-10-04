@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Report struct {
-	ID        uint      `gorm:"primaryKey"`
+	ID        uint      `json:"id" gorm:"primaryKey"`
 	UserID    uint      `json:"user_id" gorm:"uniqueIndex:idx_user_goods"`
 	PostID    uint      `json:"post_id" gorm:"uniqueIndex:idx_user_goods;index"` // 排序分里的子查询要用
 	Reason    string    `json:"reason" gorm:"size:500"`
