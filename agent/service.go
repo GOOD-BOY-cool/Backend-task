@@ -63,7 +63,7 @@ func Chat(userID uint, req ChatRequest) (*ChatResponse, error) {
 		Role:        "user",
 		Content:     req.Message,
 		Status:      "done",
-		ClientMsgID: req.ClientMsgID,
+		ClientMsgID: &req.ClientMsgID, // 只有用户消息才有幂等键，助手消息留 NULL
 	}
 	if err := database.DB.Create(&userMsg).Error; err != nil {
 		return nil, err
@@ -76,7 +76,9 @@ func Chat(userID uint, req ChatRequest) (*ChatResponse, error) {
 	}
 
 	// 调模型LLM，拿到回答和 token 消耗量
-	replyText, tokens, err := Ask(messages)
+	// 用 RunWithTools 而不是 Ask：前者会把工具清单一起发给模型，
+	// 模型需要查数据时能自己发起调用（search_goods / get_my_profile）
+	replyText, tokens, err := RunWithTools(userID, messages)
 	if err != nil {
 		// 把失败也记下来，方便事后排查，同时不让脏数据混进上下文
 		database.DB.Create(&models.ChatMessage{
