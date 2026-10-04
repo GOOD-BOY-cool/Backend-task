@@ -3,6 +3,7 @@ package agent
 import (
 	"backend/database"
 	"backend/models"
+	"context"
 	"errors"
 	"time"
 
@@ -39,9 +40,22 @@ const (
 	titleMaxLen = 20 // 会话标题取用户首句话的前多少个字
 )
 
-// Chat 处理一次完整对话。
+// Chat 处理一次完整对话，等模型全部生成完才一次性返回。
 // userID 来自 JWT 中间件，不是前端传的这样用户就伪造不了身份。
 func Chat(userID uint, req ChatRequest) (*ChatResponse, error) {
+	return runChat(context.Background(), userID, req, nil)
+}
+
+// ChatStream 同上，但模型吐出的每个字都通过 onDelta 回调推出去，
+// 前端能做成"打字机"效果。onDelta 为 nil 时等价于 Chat。
+// ctx 由 HTTP 请求带过来：用户关掉页面，ctx 立刻取消，请求也就停了。
+func ChatStream(ctx context.Context, userID uint, req ChatRequest, onDelta DeltaFunc) (*ChatResponse, error) {
+	return runChat(ctx, userID, req, onDelta)
+}
+
+// runChat 流式与非流式共用的那一段流程。
+// 差别只有最后"怎么调模型"这一步，所以收在一个函数里，避免改一处忘另一处。
+func runChat(ctx context.Context, userID uint, req ChatRequest, onDelta DeltaFunc) (*ChatResponse, error) {
 	// 网络卡顿时前端会重发同一条消息，如果不管，模型就会被重复调用两次（花两次钱），
 	// 用户也会看到两条一样的回答。用 client_msg_id 挡住。
 	//所以用以下函数防止幂等
@@ -75,10 +89,34 @@ func Chat(userID uint, req ChatRequest) (*ChatResponse, error) {
 		return nil, err
 	}
 
-	// 调模型LLM，拿到回答和 token 消耗量
+	// 调模型LLM，拿到回答、工具痕迹和 token 消耗量
 	// 用 RunWithTools 而不是 Ask：前者会把工具清单一起发给模型，
 	// 模型需要查数据时能自己发起调用（search_goods / get_my_profile）
-	replyText, tokens, err := RunWithTools(userID, messages)
+	var (
+		replyText string
+		trace     []ToolTrace
+		tokens    int
+	)
+	//err 在这个函数前面已经声明过了，再声明一次会报 redeclared
+
+	//if 的大括号是一个内层作用域，在它里面声明的变量，出了右花括号就销毁。
+	// return 在函数层级，看不到它们。
+	//所以必须把变量声明在外层，然后在分支里只赋值：
+
+	if onDelta != nil {
+		// 注意是 = 不是 :=
+		replyText, trace, tokens, err = RunWithToolsStream(ctx, userID, messages, onDelta)
+		if errors.Is(err, ErrToolUnsupported) {
+			// 带工具这版被拒了，退回流式纯问答：查不了商品，但聊天不受影响
+			replyText, tokens, err = AskStream(ctx, messages, onDelta)
+		}
+	} else {
+		replyText, trace, tokens, err = RunWithTools(ctx, userID, messages)
+		if errors.Is(err, ErrToolUnsupported) {
+			// 同上，非流式的兜底通道就是 llm.go 里的 Ask
+			replyText, tokens, err = Ask(messages)
+		}
+	}
 	if err != nil {
 		// 把失败也记下来，方便事后排查，同时不让脏数据混进上下文
 		database.DB.Create(&models.ChatMessage{
@@ -118,6 +156,7 @@ func Chat(userID uint, req ChatRequest) (*ChatResponse, error) {
 	return &ChatResponse{
 		SessionID: session.ID,
 		Reply:     replyText,
+		Trace:     trace,
 	}, nil
 }
 
