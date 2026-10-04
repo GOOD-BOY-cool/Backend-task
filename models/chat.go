@@ -19,15 +19,17 @@ type ChatSession struct {
 
 // 消息
 type ChatMessage struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	SessionID   uint      `json:"session_id" gorm:"index"`
-	UserID      uint      `json:"user_id" gorm:"index"`
-	Role        string    `json:"role" gorm:"size:20"`
-	Content     string    `json:"content" gorm:"type:text"`
-	ToolName    string    `json:"tool_name" gorm:"size:50"`
-	ToolArgs    string    `json:"tool_args" gorm:"type:text"` //工具参数通常是JSON
-	Status      string    `json:"status" gorm:"size:20;default:'done'"`
-	ErrMsg      string    `json:"err_msg" gorm:"size:500"`
-	ClientMsgID string    `json:"client_msg_id" gorm:"uniqueIndex:idx_client_msg;size:64"`
+	ID        uint   `gorm:"primaryKey" json:"id"`
+	SessionID uint   `json:"session_id" gorm:"index"`
+	UserID    uint   `json:"user_id" gorm:"index"`
+	Role      string `json:"role" gorm:"size:20"`
+	Content   string `json:"content" gorm:"type:text"`
+	ToolName  string `json:"tool_name" gorm:"size:50"`
+	ToolArgs  string `json:"tool_args" gorm:"type:text"` //工具参数通常是JSON
+	Status    string `json:"status" gorm:"size:20;default:'done'"`
+	ErrMsg    string `json:"err_msg" gorm:"size:500"`
+	// 用指针：助手消息不填这个字段时存 NULL，而 MySQL 唯一索引允许多行 NULL；
+	// 如果用 string，所有助手消息都会存成空字符串 ""，第二条回答就会撞 Duplicate entry
+	ClientMsgID *string   `json:"client_msg_id,omitempty" gorm:"uniqueIndex:idx_client_msg;size:64"`
 	CreatedAt   time.Time `json:"created_at"`
 }
