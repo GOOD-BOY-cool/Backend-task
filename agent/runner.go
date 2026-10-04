@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 // 模型有可能陷入"调工具，不满意，再调"的死循环，必须给个上限兜底，
 // 防止一次对话就能把你账户里的钱烧光。
 const maxToolRounds = 3
+
+// ErrToolUnsupported 这一轮"带工具"的请求被模型拒绝了（通常是 HTTP 400）。
+// 上层看到这个错误可以退化成纯问答，而不是直接告诉用户"助手不可用"。
+var ErrToolUnsupported = errors.New("模型不支持本次工具调用")
 
 // Msg 支持工具调用的完整消息格式。
 // llm.go 里的 Message 只有 role/content，这里多了三个字段
@@ -57,38 +62,60 @@ type toolResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// RunWithTools 带工具的完整对话入口。
+// talkFunc 一次"问模型"的抽象。
+// 非流式走 askWithTools（一口气拿回整段回答），
+// 流式走 askWithToolsStream（一块一块往外吐）。
+// 两种方式的工具循环编排逻辑完全一样，所以把它抽成参数传进来复用。
+type talkFunc func(ctx context.Context, msgs []Msg) (Msg, int, error)
+
+// RunWithTools 带工具的完整对话入口（非流式，全部生成完才返回）。
 // 参数 messages 是 llm.go 里那种普通消息（buildMessages 拼好的），
 // 这里会转成带工具能力的格式，然后进入循环。
-func RunWithTools(userID uint, messages []Message) (string, int, error) {
+func RunWithTools(ctx context.Context, userID uint, messages []Message) (string, []ToolTrace, int, error) {
+	return runLoop(ctx, userID, messages, askWithTools)
+}
+
+// RunWithToolsStream 同上，但模型吐出的每个字都会立刻回调给 onDelta，
+// 用户可以边看边等，不用干瞪着转圈图标等几秒才看到整段文字。
+func RunWithToolsStream(ctx context.Context, userID uint, messages []Message, onDelta DeltaFunc) (string, []ToolTrace, int, error) {
+	return runLoop(ctx, userID, messages, func(ctx context.Context, msgs []Msg) (Msg, int, error) {
+		return askWithToolsStream(ctx, msgs, onDelta)
+	})
+}
+
+// runLoop 工具循环，流式和非流式共用这一段编排逻辑。
+//
+// 返回：最终回答、工具调用痕迹（前端可以显示"刚查了商品库"）、消耗的 token 数。
+func runLoop(ctx context.Context, userID uint, messages []Message, talk talkFunc) (string, []ToolTrace, int, error) {
 	msgs := make([]Msg, 0, len(messages)+4)
 	for _, m := range messages {
 		msgs = append(msgs, Msg{Role: m.Role, Content: m.Content})
 	}
 
+	var trace []ToolTrace
 	totalTokens := 0
-	ctx := context.Background() //制造一个空的上下文（不能被取消，无截止时间，没有值，永远不会出差错），后续可以传给工具调用，让它们支持超时和取消请求
 
 	for round := 0; round < maxToolRounds; round++ {
-		reply, tokens, err := askWithTools(msgs)
+		reply, tokens, err := talk(ctx, msgs)
 		totalTokens += tokens
 		if err != nil {
-			return "", totalTokens, err
+			return "", trace, totalTokens, err
 		}
 
 		// 把模型这一轮说的话（哪怕是"我要调工具"）也记进历史
-		msgs = append(msgs, reply) //没调用工具所以直接把模型的回答放进历史里
+		msgs = append(msgs, reply) //调没调工具都要把模型的回答放进历史里
 
 		// 没要求调工具 ，这就是最终答案，收工
 		if len(reply.ToolCalls) == 0 {
 			if reply.Content == "" {
-				return "", totalTokens, fmt.Errorf("模型返回了空内容")
+				return "", trace, totalTokens, fmt.Errorf("模型返回了空内容")
 			}
-			return reply.Content, totalTokens, nil
+			return reply.Content, trace, totalTokens, nil
 		}
 
 		// 模型要求调工具：逐个执行，把结果作为 role=tool 塞回去
 		for _, call := range reply.ToolCalls {
+			start := time.Now()
 			result, execErr := ExecTool(ctx, userID, call.Function.Name, call.Function.Arguments)
 			if execErr != nil {
 				// 关键设计：工具出错不要直接让整个请求失败，
@@ -99,6 +126,17 @@ func RunWithTools(userID uint, messages []Message) (string, int, error) {
 				b, _ := json.Marshal(map[string]string{"error": execErr.Error()})
 				result = string(b)
 			}
+			// 记下这次调用，前端可以展示"助手刚刚查了商品库"
+			tr := ToolTrace{
+				Name:   call.Function.Name,
+				OK:     execErr == nil,
+				CostMS: time.Since(start).Milliseconds(),
+			} //Milliseconds()返回从start到现在的时间间隔，单位为毫秒
+			if execErr != nil {
+				tr.ErrMsg = truncate(execErr.Error(), 200)
+			}
+			trace = append(trace, tr)
+
 			//由于模型要调用工具，所以要对工具序列化进行存储。当不需要调用工具时，ToolCalls为空数组，模型直接返回结果。工具执行后，结果会被放回Msg的Content中，并带上ToolCallID以对应调用。
 			msgs = append(msgs, Msg{
 				Role:       "tool",
@@ -109,11 +147,11 @@ func RunWithTools(userID uint, messages []Message) (string, int, error) {
 	}
 
 	// 跑满轮次还没得出结论，给个体面的兜底，别把空白丢给用户
-	return "这个问题我需要查的东西有点多，能说得再具体一点吗？", totalTokens, nil
+	return "这个问题我需要查的东西有点多，能说得再具体一点吗？", trace, totalTokens, nil
 }
 
-// askWithTools 真正发请求的那一步
-func askWithTools(messages []Msg) (Msg, int, error) {
+// askWithTools 真正发请求的那一步（非流式）
+func askWithTools(ctx context.Context, messages []Msg) (Msg, int, error) {
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
 		return Msg{}, 0, fmt.Errorf("环境变量 DEEPSEEK_API_KEY 没设置")
@@ -133,7 +171,7 @@ func askWithTools(messages []Msg) (Msg, int, error) {
 		return Msg{}, 0, err
 	}
 
-	req, err := http.NewRequest("POST", deepseekBaseURL+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", deepseekBaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return Msg{}, 0, err
 	}
@@ -157,6 +195,11 @@ func askWithTools(messages []Msg) (Msg, int, error) {
 		return Msg{}, 0, fmt.Errorf("解析返回失败，原始内容: %s", string(raw))
 	}
 	if parsed.Error != nil {
+		// 400 基本都是"这次请求带的东西它处理不了"（比如思考模式下不支持工具、
+		// schema 写错）。打个专门的标记，好让上层退化成纯问答再试一次。
+		if resp.StatusCode == http.StatusBadRequest {
+			return Msg{}, 0, fmt.Errorf("%w: %s", ErrToolUnsupported, parsed.Error.Message)
+		}
 		return Msg{}, 0, fmt.Errorf("DeepSeek 报错: %s", parsed.Error.Message)
 	}
 	if len(parsed.Choices) == 0 {
