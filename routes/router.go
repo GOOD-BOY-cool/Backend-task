@@ -82,7 +82,8 @@ func SetupRouter() *gin.Engine {
 		agentGroup.GET("/sessions", controllers.ListChatSessions)              // 会话列表
 		agentGroup.GET("/sessions/:id/messages", controllers.ListChatMessages) // 历史消息
 		agentGroup.DELETE("/sessions/:id", controllers.ArchiveChatSession)     // 归档
-		agentGroup.POST("/chat", controllers.AgentChat)                        // 发消息（SSE 流式:增加聊天感）
+		agentGroup.POST("/chat", controllers.AgentChat)                        // 发消息（非流式）
+		agentGroup.POST("/chat/stream", controllers.AgentChatStream)           // 发消息（SSE 流式）
 	}
 	r.POST("/api/user/sign-in", middleware.JWTAuth(), controllers.SignIn)
 
