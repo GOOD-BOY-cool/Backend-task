@@ -18,4 +18,5 @@ type Goods struct {
 	Category    string         `json:"category" gorm:"size:32"`
 	Status      string         `json:"status" gorm:"size:20;default:'pending';index"` // pending/approved/rejected/deleted  初始默认为待审核状态（pending）,index可以加快存储速度，因为他会自建一个表{pending:1,2,5    ;approved:3,4     ;..........}
 	UserID      uint           `json:"user_id"`
+	SaleClosed  bool           `json:"sale_closed" gorm:"default:false"` // 二期新增：卖家是否已关闭售卖。
 }
