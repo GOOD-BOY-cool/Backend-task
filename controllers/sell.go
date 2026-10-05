@@ -259,13 +259,12 @@ func GetSellResult(c *gin.Context) {
 		utils.Fail(c, 404, "你还没有对该商品发起购买请求")
 		return
 	}
+	var pos []float64
+	if req.Status == "approved" {
+		pos = req.Position
+	}
+	utils.Success(c, gin.H{"status": req.Status, "position": pos})
 
-	// closed 是个特例：卖家关闭时已经把全部请求刷成 closed 了，
-	// 但按文档语义它应该优先于 rejected 告诉买家"这件不卖了"
-	utils.Success(c, gin.H{
-		"status":   req.Status,
-		"position": req.Position,
-	})
 }
 
 // 卖家关闭售卖
