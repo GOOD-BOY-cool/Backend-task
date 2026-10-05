@@ -87,5 +87,17 @@ func SetupRouter() *gin.Engine {
 	}
 	r.POST("/api/user/sign-in", middleware.JWTAuth(), controllers.SignIn)
 
+	// 二期：买卖流程（全部需要登录）
+	sell := r.Group("/api/sell")
+	sell.Use(middleware.JWTAuth())
+	{
+		sell.POST("/request/:goods_id", controllers.CreateSellRequest)       // 买家发起购买请求
+		sell.GET("/notice", controllers.ListSellNotices)                     // 卖家查看购买通知
+		sell.POST("/notice/:request_id/reply", controllers.ReplySellRequest) // 卖家同意/拒绝
+		sell.GET("/result/:goods_id", controllers.GetSellResult)             // 买家查看结果及交易地点
+		sell.POST("/close/:goods_id", controllers.CloseSell)                 // 卖家关闭售卖
+		sell.GET("/mine", controllers.ListMySellRequests)                    // 卖家查看自己商品的售卖概览
+	}
+
 	return r
 }

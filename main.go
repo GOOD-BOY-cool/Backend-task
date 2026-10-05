@@ -34,6 +34,7 @@ func main() {
 	db.AutoMigrate(&models.Report{})
 	db.AutoMigrate(&models.ChatSession{})
 	db.AutoMigrate(&models.ChatMessage{})
+	db.AutoMigrate(&models.SellRequest{}) //购买请求表
 	//生成审计日志（管理员）
 	//按照模型结构体自动创建表，若表已存在则不创建
 	database.Init(db)

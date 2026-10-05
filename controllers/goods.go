@@ -75,9 +75,9 @@ func ListGoods(c *gin.Context) {
 			goods.*,
 			(
 				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
-				+ users.level/100*0.25
-				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
-				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
+				+ users.level / 100.0 * 0.25
+				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000.0 * 0.15
+				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000.0 * 0.15
 			) AS score
 		`).
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
@@ -171,8 +171,8 @@ func ListGoodsRanked(c *gin.Context) {
 			(
 				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
 				+ users.level / 100.0 * 0.25
-				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000 * 0.15
-				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000 * 0.15
+				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000.0 * 0.15
+				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000.0 * 0.15
 			) AS score
 		`).
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
