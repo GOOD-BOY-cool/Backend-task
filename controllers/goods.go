@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // 商品发布函数
@@ -53,6 +54,33 @@ func CreateGoods(c *gin.Context) {
 	utils.Success(c, gin.H{"msg": msg, "goods": goods})
 }
 
+// score = 时间衰减 × 0.45 + 发帖人等级 × 0.25 + 收藏数 × 0.15 - 被举报次数 × 0.15
+const scoreSelect = `goods.*,
+	(
+		EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
+		+ users.level / 100.0 * 0.25
+		+ LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id), 1000) / 1000.0 * 0.15
+		- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) / 1000.0 * 0.15
+	) AS score`
+
+// approvedOnSale 所有"商品可见列表"的统一起手式：只取能买的商品
+// 列名一律写成 goods.xxx：因为后面要联合User表
+// 现在 users 表没有 status 列所以不报错，一旦 User 加上这个字段，
+// MySQL 就会报 Column 'status' in where clause is ambiguous
+func approvedOnSale() *gorm.DB {
+	return DB.Model(&models.Goods{}).
+		Where("goods.status = ?", "approved").
+		Where("goods.sale_closed = ?", false)
+}
+
+// totalPages 向上取整算总页数
+func totalPages(total int64, limit int) int {
+	if total <= 0 {
+		return 0
+	}
+	return int((total + int64(limit) - 1) / int64(limit))
+}
+
 // 商品列表（包含查询功能与分页功能）
 func ListGoods(c *gin.Context) {
 	keyword := c.Query("keyword")                          //c.get拿c.set放置的东西(一次请求结束后就没了，是我自己装进上下文的，数据存在请求内存)，c.Query拿URL中问号？后面的参数
@@ -66,10 +94,15 @@ func ListGoods(c *gin.Context) {
 
 	var goods []models.Goods //用数组来对应数据库多行数据，因为列表要装多条数据，为Find做准备
 
-	query := DB.Model(&models.Goods{}).Where("status=?", "approved")
+	query := approvedOnSale()
 
 	if keyword != "" {
-		query = query.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%") //动态模糊查询，LIKE是模糊匹配，%=”通配符“，%keyword%意味着任意位置包含keyword就行，问号是占位符
+		// 括号是必需的：OR 的优先级低于 AND。
+		// 不写括号就是 status='approved' AND ... AND title LIKE ? OR description LIKE ?，
+		// 语义变成 "(已过审 且 标题匹配) 或者 描述匹配" —— 描述匹配的未过审商品会被捞出来。
+		// 顺带一提，GORM 检测到裸 SQL 里有 " OR " 时会自动补一层括号，
+		// 但依赖这个隐晦行为风险太大，显式写上更稳
+		query = query.Where("(title LIKE ? OR description LIKE ?)", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
 	var totalGoods int64
@@ -77,16 +110,7 @@ func ListGoods(c *gin.Context) {
 		utils.Fail(c, 500, "获取总数失败")
 		return
 	}
-	totalpages := (totalGoods + 10 - 1) / 10
-	if err = query.Select(`
-			goods.*,
-			(
-				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
-				+ users.level / 100.0 * 0.25
-				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000.0 * 0.15
-				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000.0 * 0.15
-			) AS score
-		`).
+	if err = query.Select(scoreSelect).
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
 		Order("score DESC").Limit(limit).Offset(offset).Find(&goods).Error; err != nil {
 		utils.Fail(c, 500, "获取列表失败")
@@ -95,7 +119,7 @@ func ListGoods(c *gin.Context) {
 
 	utils.Success(c, gin.H{
 		"goods":     goods,
-		"totalpage": totalpages,
+		"totalpage": totalPages(totalGoods, limit),
 	})
 }
 
@@ -181,26 +205,15 @@ func ListGoodsRanked(c *gin.Context) {
 	limit := 10                  //每次拿10条
 	offset := (page - 1) * limit //拿取你输入页码的数据
 	var totalGoods int64
-	if err = DB.Model(&models.Goods{}).Where("goods.status = ?", "approved").Count(&totalGoods).Error; err != nil {
+	if err = approvedOnSale().Count(&totalGoods).Error; err != nil {
 		utils.Fail(c, 500, "获取总数失败")
 		return
 	}
-	totalpages := (totalGoods + 10 - 1) / 10
 
 	var goods []models.Goods
 
-	err = DB.Model(&models.Goods{}).
-		Select(`
-			goods.*,
-			(
-				EXP(-TIMESTAMPDIFF(HOUR, goods.created_at, NOW()) / 72.0) * 0.45
-				+ users.level / 100.0 * 0.25
-				+LEAST((SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id),1000) /1000.0 * 0.15
-				- LEAST((SELECT COUNT(*) FROM reports r WHERE r.post_id = goods.id AND r.status = 'valid'), 1000) /1000.0 * 0.15
-			) AS score
-		`).
+	err = approvedOnSale().Select(scoreSelect).
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
-		Where("goods.status = ?", "approved").
 		Order("score DESC").
 		Limit(limit).
 		Offset(offset).
@@ -209,14 +222,16 @@ func ListGoodsRanked(c *gin.Context) {
 	if err != nil {
 		utils.Fail(c, 500, "获取列表失败")
 		return
-	} //不把user写成跟report一样的子查询，是考虑到当商品太多时子查询的速度会降低，性能降低
-	/*“*”意味着通配符；goods.*把商品表的所有列（ID，名字）拿出
-	SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id  选择并且对收藏表中收藏的物品id=当前物品id的数量进行统计
-	AS score: 把以上求和的结果作为score,Go语言看懂后把数字存到Score字段
-	Joins("LEFT JOIN users ON goods.user_id = users.id")“LEFT JOIN users”把user表拉过来一起查，"ON goods.user_id = users.id"条件是商品的user_id等于用户的id
+	}
+	//不把user写成跟report一样的子查询，是考虑到当商品太多时子查询的速度会降低，性能降低
+	/*
+		“*”意味着通配符；goods.*把商品表的所有列（ID，名字）拿出
+		SELECT COUNT(*) FROM favorites f WHERE f.post_id = goods.id  选择并且对收藏表中收藏的物品id=当前物品id的数量进行统计
+		AS score: 把以上求和的结果作为score,Go语言看懂后把数字存到Score字段
+		Joins("LEFT JOIN users ON goods.user_id = users.id")“LEFT JOIN users”把user表拉过来一起查，"ON goods.user_id = users.id"条件是商品的user_id等于用户的id
 	*/
 	utils.Success(c, gin.H{
 		"goods":     goods,
-		"totalpage": totalpages})
+		"totalpage": totalPages(totalGoods, limit)})
 
 }
