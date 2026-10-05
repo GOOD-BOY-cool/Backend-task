@@ -263,8 +263,10 @@ func GetSellResult(c *gin.Context) {
 	if req.Status == "approved" {
 		pos = req.Position
 	}
-	utils.Success(c, gin.H{"status": req.Status, "position": pos})
-
+	utils.Success(c, gin.H{
+		"status":   req.Status,
+		"position": pos,
+	})
 }
 
 // 卖家关闭售卖
@@ -343,12 +345,16 @@ func ListMySellRequests(c *gin.Context) {
 
 	list := make([]gin.H, 0, len(requests))
 	for _, r := range requests {
+		var pos []float64
+		if r.Status == "approved" {
+			pos = r.Position
+		}
 		list = append(list, gin.H{
 			"request_id": r.RequestID,
 			"account":    r.BuyerAccount,
 			"goods_id":   r.GoodsID,
 			"status":     r.Status,
-			"position":   r.Position,
+			"position":   pos,
 			"created_at": r.CreatedAt,
 		})
 	}
