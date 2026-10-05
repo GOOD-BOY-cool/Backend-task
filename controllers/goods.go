@@ -71,6 +71,13 @@ func ListGoods(c *gin.Context) {
 	if keyword != "" {
 		query = query.Where("title LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%") //动态模糊查询，LIKE是模糊匹配，%=”通配符“，%keyword%意味着任意位置包含keyword就行，问号是占位符
 	}
+
+	var totalGoods int64
+	if err = query.Count(&totalGoods).Error; err != nil {
+		utils.Fail(c, 500, "获取总数失败")
+		return
+	}
+	totalpages := (totalGoods + 10 - 1) / 10
 	if err = query.Select(`
 			goods.*,
 			(
@@ -86,7 +93,10 @@ func ListGoods(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, goods)
+	utils.Success(c, gin.H{
+		"goods":     goods,
+		"totalpage": totalpages,
+	})
 }
 
 // 商品详情
@@ -163,9 +173,23 @@ func DeleteGoods(c *gin.Context) {
 // score = 时间衰减 × 0.45 + 发帖人等级 × 0.25 + 收藏数 × 0.15 - 被举报次数 × 0.15
 
 func ListGoodsRanked(c *gin.Context) {
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1")) //strconv.Atoi()将字符串转换为整数，c.DefaultQuery("page","1"）当输入为空时默认page为1，防止未输入值导致的程序崩溃
+	if err != nil || page < 1 {
+		utils.Fail(c, 400, "请输入大于0的数字")
+		return
+	}
+	limit := 10                  //每次拿10条
+	offset := (page - 1) * limit //拿取你输入页码的数据
+	var totalGoods int64
+	if err = DB.Model(&models.Goods{}).Where("goods.status = ?", "approved").Count(&totalGoods).Error; err != nil {
+		utils.Fail(c, 500, "获取总数失败")
+		return
+	}
+	totalpages := (totalGoods + 10 - 1) / 10
+
 	var goods []models.Goods
 
-	err := DB.Model(&models.Goods{}).
+	err = DB.Model(&models.Goods{}).
 		Select(`
 			goods.*,
 			(
@@ -178,6 +202,8 @@ func ListGoodsRanked(c *gin.Context) {
 		Joins("LEFT JOIN users ON goods.user_id = users.id").
 		Where("goods.status = ?", "approved").
 		Order("score DESC").
+		Limit(limit).
+		Offset(offset).
 		Find(&goods).Error
 
 	if err != nil {
@@ -189,5 +215,8 @@ func ListGoodsRanked(c *gin.Context) {
 	AS score: 把以上求和的结果作为score,Go语言看懂后把数字存到Score字段
 	Joins("LEFT JOIN users ON goods.user_id = users.id")“LEFT JOIN users”把user表拉过来一起查，"ON goods.user_id = users.id"条件是商品的user_id等于用户的id
 	*/
-	utils.Success(c, goods)
+	utils.Success(c, gin.H{
+		"goods":     goods,
+		"totalpage": totalpages})
+
 }
