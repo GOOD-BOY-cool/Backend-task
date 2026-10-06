@@ -221,22 +221,34 @@ func ReplySellRequest(c *gin.Context) {
 	}
 
 	now := time.Now()
-	updates := map[string]interface{}{
-		"handled_at": &now,
-		"status":     "approved",
-	}
+
 	if body.Status == "approve" {
 		// 同意 A 买家的同时，把同一件商品其他还在 pending 的请求统统拒掉。
 		// 一件二手货只有一个买家能买走，留着别的 pending 只会让卖家以为"我还没处理"
 		DB.Model(&models.SellRequest{}).
 			Where("goods_id = ? AND status = ? AND id <> ?", req.GoodsID, "pending", req.ID).
 			Updates(map[string]interface{}{"status": "rejected", "handled_at": &now})
-		updates["position"] = body.Position
+
+		req.Status = "approved"
+		req.Position = body.Position
+		req.HandledAt = &now
 	} else {
-		updates["status"] = "rejected"
+		req.Status = "rejected"
+		req.HandledAt = &now
 	}
 
-	if err := DB.Model(&req).Updates(updates).Error; err != nil {
+	// 这里必须用「结构体 + Select」更新，不能把 []float64 塞进 map 交给 Updates。
+	//s
+	// GORM 遇到 map 里的切片会按 IN 元组展开，实测生成的 SQL 是：
+	//     UPDATE sell_requests SET `position`=(?,?) WHERE `id` = ?
+	// MySQL 会报 Operand should contain 1 column(s) —— "同意"这个操作必定失败。
+	// 结构体 + Select 才会把地点序列化成一个 JSON 串写进单列。
+	cols := []string{"status", "handled_at"}
+	if body.Status == "approve" {
+		cols = append(cols, "position")
+	}
+
+	if err := DB.Model(&req).Select(cols).Updates(&req).Error; err != nil {
 		utils.Fail(c, 500, "处理失败")
 		return
 	}
