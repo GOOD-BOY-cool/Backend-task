@@ -97,6 +97,7 @@ func SetupRouter() *gin.Engine {
 		sell.GET("/result/:goods_id", controllers.GetSellResult)             // 买家查看结果及交易地点
 		sell.POST("/close/:goods_id", controllers.CloseSell)                 // 卖家关闭售卖
 		sell.GET("/mine", controllers.ListMySellRequests)                    // 卖家查看自己商品的售卖概览
+		sell.GET("/purchase", controllers.MyPurchaseDetails)                 //买家查看商品
 	}
 
 	return r

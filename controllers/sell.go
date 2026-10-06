@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"math/rand"
+	"strconv"
 	"time"
 
 	"backend/models"
@@ -19,12 +20,19 @@ const sellRequestPrefix = "req_"
 //	自增 ID 会泄露业务量（别人一看 req_5 就知道你才成交 5 单）
 func genRequestID() string {
 	const charset = "0123456789"
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, 8)
+	b := make([]byte, 12)
 	for i := range b {
 		b[i] = charset[rand.Intn(len(charset))]
 	}
 	return sellRequestPrefix + string(b)
+}
+
+// approvedPosition 只有"卖家已同意"的交易才把地点给出去。
+func approvedPosition(status string, pos []float64) []float64 {
+	if status == "approved" {
+		return pos
+	}
+	return nil
 }
 
 // 发起购买请求
@@ -259,13 +267,9 @@ func GetSellResult(c *gin.Context) {
 		utils.Fail(c, 404, "你还没有对该商品发起购买请求")
 		return
 	}
-	var pos []float64
-	if req.Status == "approved" {
-		pos = req.Position
-	}
 	utils.Success(c, gin.H{
 		"status":   req.Status,
-		"position": pos,
+		"position": approvedPosition(req.Status, req.Position),
 	})
 }
 
@@ -345,18 +349,78 @@ func ListMySellRequests(c *gin.Context) {
 
 	list := make([]gin.H, 0, len(requests))
 	for _, r := range requests {
-		var pos []float64
-		if r.Status == "approved" {
-			pos = r.Position
-		}
 		list = append(list, gin.H{
 			"request_id": r.RequestID,
 			"account":    r.BuyerAccount,
 			"goods_id":   r.GoodsID,
 			"status":     r.Status,
-			"position":   pos,
+			"position":   approvedPosition(r.Status, r.Position),
 			"created_at": r.CreatedAt,
 		})
 	}
 	utils.Success(c, list)
+}
+
+// MyPurchaseDetails 买家查看自己发出过的购买请求
+func MyPurchaseDetails(c *gin.Context) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	// 分页参数跟 ListGoods 保持同一套写法：page 从 1 开始，每页 10 条
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		utils.Fail(c, 400, "请输入大于0的数字")
+		return
+	}
+	limit := 10
+	offset := (page - 1) * limit
+
+	// 匿名结构体：嵌入 SellRequest 接 sell_requests.* ，
+	// 后面几个字段接 JOIN 过来的商品列（靠 gorm:"column:..." 对上别名）
+	var rows []struct {
+		models.SellRequest
+		Title    string   `gorm:"column:title"`
+		Price    float64  `gorm:"column:price"`
+		Images   []string `gorm:"column:images;serializer:json"`
+		SellerID uint     `gorm:"column:seller_id"`
+	}
+
+	db := DB.Model(&models.SellRequest{}).
+		Select(`sell_requests.*,
+			goods.title  AS title,
+			goods.price  AS price,
+			goods.images AS images,
+			goods.user_id AS seller_id`).
+		Joins("JOIN goods ON goods.id = sell_requests.goods_id").
+		Where("sell_requests.buyer_id = ?", uid).
+		Order("sell_requests.created_at DESC")
+
+	var total int64
+	if db.Count(&total).Error != nil {
+		utils.Fail(c, 500, "获取失败")
+		return
+	}
+	if err := db.Limit(limit).Offset(offset).Scan(&rows).Error; err != nil {
+		utils.Fail(c, 500, "获取失败")
+		return
+	}
+
+	list := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, gin.H{
+			"request_id": r.RequestID,
+			"goods_id":   r.GoodsID,
+			"title":      r.Title,
+			"price":      r.Price,
+			"images":     r.Images,
+			"seller_id":  r.SellerID,
+			"status":     r.Status,
+			"position":   approvedPosition(r.Status, r.Position),
+			"created_at": r.CreatedAt,
+			"handled_at": r.HandledAt,
+		})
+	}
+	utils.Success(c, gin.H{"list": list, "totalpage": totalPages(total, limit)})
 }
